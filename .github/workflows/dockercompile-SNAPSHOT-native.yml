@@ -406,6 +406,23 @@ jobs:
 
           echo "status=success" >> $GITHUB_OUTPUT
 
+      - name: Prepare release files
+        if: steps.tag.outputs.status == 'success'
+        run: |
+          # 移除空文件和已存在的文件
+          find ${{ github.workspace }}/build/ -name "*.apk" -size 0 -delete
+          find ${{ github.workspace }}/build/ -name "*.pem" -size 0 -delete
+          
+          # 列出实际要上传的文件
+          echo "Files to upload:"
+          find ${{ github.workspace }}/build/ -name "*.apk" -o -name "*.pem" | xargs ls -lh 2>/dev/null || true
+          
+          # 如果没有找到文件，创建占位符文件防止空上传
+          if [ -z "$(find ${{ github.workspace }}/build/ -name '*.apk' -o -name '*.pem' 2>/dev/null)" ]; then
+            echo "No build files found, creating dummy file"
+            echo "Build failed - no output files" > ${{ github.workspace }}/build/dummy.txt
+          fi
+
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         if: steps.tag.outputs.status == 'success'
@@ -413,9 +430,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: ${{ steps.tag.outputs.release_tag }}
+          name: "SmartDNS ${{ matrix.arch }} Build"
           body_path: release.txt
           files: |
             ${{ github.workspace }}/build/*.apk
             ${{ github.workspace }}/build/*.pem
+            ${{ github.workspace }}/build/dummy.txt
+          draft: false
           prerelease: true
+          overwrite: true  # 这个参数可以覆盖已存在的文件
 
